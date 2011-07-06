@@ -1,0 +1,37 @@
+From b9e94c93df914bd1d9eec9f150b2e4e00702ae7b Mon Sep 17 00:00:00 2001
+From: Jim Meyering <meyering@redhat.com>
+Date: Sun, 10 Jan 2010 19:53:10 +0000
+Subject: gzip -d would fail with a CRC error...
+
+...for some inputs, and some memcpy implementations.  It is possible
+that an offending input has to be compressed "from FAT filesystem
+(MS-DOS, OS/2, NT)", since the sole reproducer no longer evokes a
+CRC error when uncompressed and recompressed on a GNU/Linux system.
+Also, using an unpatched reverse-memcpy-gzip on over 100,000 inputs
+on a GNU/Linux system did not turn up another reproducer.
+* inflate.c (inflate_codes): Don't call memcpy with overlapping regions.
+Properly detect when source and destination overlap.
+* tests/memcpy-abuse: New test, to trigger misbehavior.
+* Makefile.am (TESTS): Add it.
+* NEWS (Bug fixes): Mention it.
+Reported by Alain Magloire in
+http://thread.gmane.org/gmane.comp.gnu.gzip.bugs/307
+---
+diff --git a/inflate.c b/inflate.c
+index affab37..5b68314 100644
+--- a/inflate.c
++++ b/inflate.c
+@@ -589,7 +589,7 @@ int bl, bd;             /* number of bits decoded by tl[] and td[] */
+       do {
+         n -= (e = (e = WSIZE - ((d &= WSIZE-1) > w ? d : w)) > n ? n : e);
+ #if !defined(NOMEMCPY) && !defined(DEBUG)
+-        if (w - d >= e)         /* (this test assumes unsigned comparison) */
++        if (d < w && w - d >= e)
+         {
+           memcpy(slide + w, slide + d, e);
+           w += e;
+diff --git a/tests/memcpy-abuse b/tests/memcpy-abuse
+new file mode 100755
+index 0000000..8f2abd5
+--
+cgit v0.8.2.1
